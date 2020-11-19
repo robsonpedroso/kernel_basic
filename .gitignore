@@ -1,0 +1,5 @@
+# arquivos compilados
+*.o
+*.bin
+*.iso
+*.img
