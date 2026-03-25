@@ -6,7 +6,6 @@ void scan(char* buf, int n)
 	char key= 0;
 	int i= 0;
 	char stat= 1;
-	int startpos= get_cursor_pos()%80;
 
 	while(stat) // '\n is enter press key code'
 	{

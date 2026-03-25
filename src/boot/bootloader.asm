@@ -55,6 +55,10 @@ read_sector:
     int 13h
     popa
 
+    ; Enable VGA Mode 13h (320x200x256) so the kernel can draw pixels.
+    mov ax, 0x0013
+    int 10h
+
     cli
 
     xor ax,ax

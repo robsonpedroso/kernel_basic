@@ -3,5 +3,7 @@
  
 int atoi(char *string);
 void itoa(char *buf, int val);
+void sleep(int milisecond);
+void shutdown();
 
 #endif  
