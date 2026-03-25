@@ -11,7 +11,7 @@ static void gui_wait_key();
 static void gui_draw_menu(int selected);
 static void gui_exec_selected(int selected);
 static void gui_show_info();
-static void gui_draw_button(int x, int y, int w, int h, int selected, char label);
+static void gui_draw_button(int x, int y, int w, int h, int selected, char* text);
 
 void main() {
 	int selected = 0;
@@ -104,7 +104,7 @@ void startcalc()
  {	
 	clear_screen();
 	next_line();
-	kernel_print_text("1:",0);
+	kernel_print_text("Informe o primeiro valor: ",0);
 
 	int stat = 1;
 	while (stat) {
@@ -112,12 +112,12 @@ void startcalc()
 		scan(ac,10);
 		int a = atoi(ac);
 
-		kernel_print_text("\n2:",0);
+		kernel_print_text("\nInforme o segundo valor: ",0);
 		char bc[10];
 		scan(bc,10);
 		int b = atoi(bc);
 
-		kernel_print_text("\n3:",0);
+		kernel_print_text("\nInforme o operador (+, -, *, /): ",0);
 		char op[2];
 		scan(op,2);
 
@@ -152,11 +152,11 @@ void startcalc()
 				break;
 		}
 
-		if (stat) kernel_print_text("\n1:",0);
+		if (stat) kernel_print_text("\nInforme o primeiro valor: ",0);
 	}
  }
 
-static void gui_draw_button(int x, int y, int w, int h, int selected, char label) {
+static void gui_draw_button(int x, int y, int w, int h, int selected, char* text) {
 	// Colors are palette indices (works even if the palette is default).
 	unsigned char bg = selected ? 10 : 4;
 	unsigned char border = selected ? 15 : 8;
@@ -165,30 +165,29 @@ static void gui_draw_button(int x, int y, int w, int h, int selected, char label
 	fill_rect(x, y, w, h, bg);
 	draw_rect(x, y, w, h, border);
 
-	// Center 8x8 glyph.
-	int tx = x + (w / 2) - 4;
-	int ty = y + (h / 2) - 4;
+	// Center text in button
+	int text_len = strlen(text);
+	int text_width = text_len * FONT_W;
+	int tx = x + (w / 2) - (text_width / 2);
+	int ty = y + (h / 2) - (FONT_H / 2);
 
-	char s[2];
-	s[0] = label;
-	s[1] = '\0';
-	draw_text(tx, ty, s, fg);
+	draw_text(tx, ty, text, fg);
 }
 
 static void gui_draw_menu(int selected) {
 	clear_screen();
 
-	// Four big buttons: "1" "2" "3" "4"
+	// Four big buttons with text labels
 	int bx = 60;
 	int bw = 200;
 	int bh = 42;
 	int gap = 12;
 	int by = 40;
 
-	gui_draw_button(bx, by + 0 * (bh + gap), bw, bh, selected == 0, '1');
-	gui_draw_button(bx, by + 1 * (bh + gap), bw, bh, selected == 1, '2');
-	gui_draw_button(bx, by + 2 * (bh + gap), bw, bh, selected == 2, '3');
-	gui_draw_button(bx, by + 3 * (bh + gap), bw, bh, selected == 3, '4');
+	gui_draw_button(bx, by + 0 * (bh + gap), bw, bh, selected == 0, "1 - Calculator");
+	gui_draw_button(bx, by + 1 * (bh + gap), bw, bh, selected == 1, "2 - Info");
+	gui_draw_button(bx, by + 2 * (bh + gap), bw, bh, selected == 2, "3 - Terminal");
+	gui_draw_button(bx, by + 3 * (bh + gap), bw, bh, selected == 3, "4 - Shutdown");
 }
 
 static void gui_wait_key() {
@@ -200,7 +199,7 @@ static void gui_show_info() {
 	clear_screen();
 
 	// Numeric-only info to avoid depending on missing glyphs.
-	draw_text(150, 96, "0.1", 15);
+	draw_text(150, 96, "0.2", 15);
 	draw_text(150, 112, "2", 15);
 
 	gui_wait_key();

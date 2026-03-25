@@ -1,6 +1,10 @@
 #ifndef _VIDEO_H
 #define _VIDEO_H
 
+// Font dimensions
+#define FONT_W 8
+#define FONT_H 8
+
 int get_cursor_pos();
 void rm_char_in_pos(int);
 

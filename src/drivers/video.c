@@ -29,8 +29,6 @@ static unsigned char reverse_bits(unsigned char byte) {
 #define SCREEN_H 200
 
 // Simple 8x8 font rendering. Text grid becomes 40 cols x 25 rows.
-#define FONT_W 8
-#define FONT_H 8
 #define TEXT_COLS (SCREEN_W / FONT_W)  // 40
 #define TEXT_ROWS (SCREEN_H / FONT_H)  // 25
 
