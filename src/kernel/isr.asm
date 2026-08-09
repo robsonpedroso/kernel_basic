@@ -1,0 +1,158 @@
+[bits 32]
+
+global idt_flush
+global gdt_flush
+extern isr_handler
+extern irq_handler
+
+; idt_flush(idt_ptr*) - loads the IDT and returns.
+idt_flush:
+    mov eax, [esp + 4]
+    lidt [eax]
+    ret
+
+; gdt_flush(gdt_ptr*) - loads the GDT, reloads every segment register with
+; the new table's selectors (0x10 data, 0x08 code -- same values the
+; bootloader's original table used, via a far jump since CS can't be
+; reloaded with a plain mov), and returns.
+gdt_flush:
+    mov eax, [esp + 4]
+    lgdt [eax]
+
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+
+    jmp 0x08:.flush
+.flush:
+    ret
+
+; Common stub shared by all exception handlers (vectors 0-31).
+; Pushes a pointer to registers_t and calls the C dispatcher.
+isr_common_stub:
+    pusha
+    mov ax, ds
+    push eax
+
+    mov ax, 0x10        ; kernel data selector (see bootloader.asm GDT)
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    push esp
+    call isr_handler
+    add esp, 4
+
+    pop eax
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    popa
+    add esp, 8           ; discard err_code + int_no pushed by the stub
+    iret
+
+; Common stub shared by all IRQ handlers (vectors 32-47).
+irq_common_stub:
+    pusha
+    mov ax, ds
+    push eax
+
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    push esp
+    call irq_handler
+    add esp, 4
+
+    pop eax
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    popa
+    add esp, 8
+    iret
+
+; Exceptions that push their own CPU error code.
+%macro ISR_ERRCODE 1
+global isr%1
+isr%1:
+    push dword %1
+    jmp isr_common_stub
+%endmacro
+
+; Exceptions with no CPU error code: push a dummy 0 so the stack layout
+; (registers_t) is identical for every vector.
+%macro ISR_NOERRCODE 1
+global isr%1
+isr%1:
+    push dword 0
+    push dword %1
+    jmp isr_common_stub
+%endmacro
+
+%macro IRQ 2
+global irq%1
+irq%1:
+    push dword 0
+    push dword %2
+    jmp irq_common_stub
+%endmacro
+
+ISR_NOERRCODE 0
+ISR_NOERRCODE 1
+ISR_NOERRCODE 2
+ISR_NOERRCODE 3
+ISR_NOERRCODE 4
+ISR_NOERRCODE 5
+ISR_NOERRCODE 6
+ISR_NOERRCODE 7
+ISR_ERRCODE   8
+ISR_NOERRCODE 9
+ISR_ERRCODE   10
+ISR_ERRCODE   11
+ISR_ERRCODE   12
+ISR_ERRCODE   13
+ISR_ERRCODE   14
+ISR_NOERRCODE 15
+ISR_NOERRCODE 16
+ISR_ERRCODE   17
+ISR_NOERRCODE 18
+ISR_NOERRCODE 19
+ISR_NOERRCODE 20
+ISR_NOERRCODE 21
+ISR_NOERRCODE 22
+ISR_NOERRCODE 23
+ISR_NOERRCODE 24
+ISR_NOERRCODE 25
+ISR_NOERRCODE 26
+ISR_NOERRCODE 27
+ISR_NOERRCODE 28
+ISR_NOERRCODE 29
+ISR_NOERRCODE 30
+ISR_NOERRCODE 31
+
+IRQ 0,  32
+IRQ 1,  33
+IRQ 2,  34
+IRQ 3,  35
+IRQ 4,  36
+IRQ 5,  37
+IRQ 6,  38
+IRQ 7,  39
+IRQ 8,  40
+IRQ 9,  41
+IRQ 10, 42
+IRQ 11, 43
+IRQ 12, 44
+IRQ 13, 45
+IRQ 14, 46
+IRQ 15, 47

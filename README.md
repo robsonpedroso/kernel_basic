@@ -40,17 +40,67 @@ O comando **make** compila na seguinte ordem
 * cat - Gera a imagem *.img através dos dois arquivos compilados (bootloader.bin kernel.bin)
 * rm - Remove os arquivos gerados que já não são mais necessários após a geração da imagem
 
-o comando **make exec** executa no qemu a img
+o comando **make exec** executa no qemu a img (via `-hda`, tratando a imagem como um disco IDE bruto — o setor de boot não é mais um BPB de disquete, ver seção de orçamento de boot abaixo)
 
 ## Diretórios
 
 1. `src` - Contém os fontes do projeto
-2. `src/boot` - Arquivo de bootloader 
-3. `src/drivers` - Arquivos dos drivers de video e teclado
+2. `src/boot` - Bootloader (real mode, liga VGA Mode 12h, entra em modo protegido 32-bit e carrega o kernel via um driver IDE PIO próprio — não usa mais BIOS INT 13h, ver seção de orçamento de boot abaixo)
+3. `src/drivers` - Vídeo (VGA Mode 12h, 640x480x16, planar), teclado (IRQ1), IDE (PIO, leitura+escrita em runtime) e RTC (leitura única do CMOS no boot)
 4. `src/include` - Arquivos de interface (cabeçalho da linguagem C) das bibliotecas
-5. `src/kernel` - Arquivos do kernel, o assemble que faz a chamada da função main do kernel.c
-6. `src/lib` - Arquivos das bibliotecas a serem carregadas em memória onde é possivel colocar seus comandos.
-7. `dist` - Contém o arquivo da imgem gerada pelo comando **make** (também são gerados nessa pasta os arquivos de saída dos builds dos outros arquivos porém são removidos no final do processo)
+5. `src/kernel` - Kernel: IDT/PIC/ISR (`idt.c`, `isr.c`, `isr.asm`, `pic.c`), GDT própria (`gdt.c`), timer PIT (`timer.c`), mouse PS/2 (`mouse.c`), fila de eventos (`event.c`), saída serial de debug (`serial.c`), sistema de arquivos (`fs.c`) e `kernel.c` (loop principal orientado a eventos)
+6. `src/lib` - Bibliotecas carregadas em memória: `stdio`, `stdlib`, `string` e o heap (`heap.c`, alocador first-fit simples)
+7. `src/gui` - Framework de janelas estilo Windows 3.11: `rect.c`/`widget.c`/`window.c`/`cursor.c` (chrome básico), `wm.c` (gerenciador de janelas), `textbox.c`/`editbuf.c`/`lineedit.c` (texto), `listbox.c`/`treeview.c`/`scrollbar.c`/`splitter.c`/`menubar.c`/`confirm.c` (primitivas do Gerenciador de Arquivos), e os apps em `src/gui/apps` (Program Manager, Terminal, Calculator, Info, Editor de Texto, Gerenciador de Arquivos)
+8. `dist` - Contém o arquivo da imgem gerada pelo comando **make** (também são gerados nessa pasta os arquivos de saída dos builds dos outros arquivos porém são removidos no final do processo)
+
+## Arquitetura (a partir da v0.3)
+
+O kernel ganhou infraestrutura básica de sistema operacional, além do que já existia (bootloader próprio, modo protegido 32-bit, driver de vídeo):
+
+* **Interrupções**: IDT com 256 entradas, PIC 8259 remapeado para os vetores 0x20-0x2F, stubs de exceção/IRQ em `isr.asm`.
+* **Timer**: PIT programado a 100Hz (IRQ0), contador de ticks acessível via `timer_get_ticks()`.
+* **Teclado**: passou de polling para IRQ1, com rastreio de Shift/Ctrl/Alt.
+* **Mouse PS/2**: driver de IRQ12 (porta 0x60/0x64), posição de cursor com clamping à tela.
+* **Fila de eventos**: buffer circular consumido via `event_wait()` (`hlt`-based, sem busy-wait), unificando teclado/mouse/timer.
+* **Heap**: alocador `kmalloc`/`kfree` (first-fit) sobre uma região fixa de 64KB.
+* **Vídeo**: migrado de Mode 13h (320x200x256) para Mode 12h (640x480, 16 cores, planar via registradores da Graphics Controller/Sequencer).
+
+## Interface gráfica (a partir da v0.4)
+
+A tela de launcher virou uma janela "Program Manager" real, usando o framework em `src/gui`:
+
+* **Janela**: barra de título azul + borda com bevel 3D (`window.c`).
+* **Botões**: bevel raised/sunken estilo Win3.11, foco por teclado indicado por um retângulo interno (`widget.c`).
+* **Mouse**: cursor com sprite de seta, salvando/restaurando o fundo sob ele (não há framebuffer sombra ainda, então cada redraw de tela esconde o cursor antes e mostra depois); hover sobre um botão move o foco, clique esquerdo ativa o botão (mesmo efeito do Enter).
+
+**Orçamento de boot (atualizado)**: o bootloader não usa mais INT 13h Extensions da BIOS — ele entra em modo protegido e carrega o kernel através de um driver IDE PIO próprio (`ide_load_kernel` em `src/boot/bootloader.asm`), falando direto com a controladora (`0x1F0-0x1F7`, LBA28), sem qualquer envolvimento da BIOS. Isso eliminou o teto cumulativo de ~24KB que o SeaBIOS impunha às leituras estendidas. O orçamento atual é `IDE_SECTORS = 800` (400KB) — o kernel hoje usa ~66 setores (~33KB), sobrando ~367KB de folga. O segundo teto que existe é o `ASSERT(. <= 0x60000)` em `link.ld` (o início do heap, ver `heap.c`), que cobre `.text+.rodata+.data+.bss` combinados e falha em tempo de link, não em runtime, caso a imagem cresça demais — esse assert é o alarme antecipado operante para qualquer crescimento futuro do kernel, bem antes do teto de 400KB do carregador IDE ser sequer aproximado.
+
+Se um dia o orçamento de 400KB realmente apertar, o fallback é simples e não exige um novo estágio de boot: aumentar `IDE_SECTORS` em `src/boot/bootloader.asm` e deslocar `FS_SUPER_LBA`/`FS_TABLE_LBA`/`FS_DATA_LBA`/`FS_END_LBA` em `src/include/fs.h` pelo mesmo delta (a região do sistema de arquivos começa logo depois do range do kernel), seguido de `make distclean && make all` — realocar a região do FS não preserva os dados já gravados na imagem, efeito equivalente a um `distclean`.
+
+## Gerenciador de Arquivos estilo Windows 3.11 (a partir da v0.5)
+
+O app "Arquivos" (`src/gui/apps/file_manager.c`) deixou de ser uma lista
+single-pane e ganhou a estrutura clássica do `winfile.exe`: barra de menus
+(Arquivo/Árvore/Exibir/Opções/Janela/Ajuda) com dropdown, uma barra de
+drive ("C:", único disco real por trás), árvore de pastas e lista de
+arquivos lado a lado com um splitter arrastável e scrollbars, e uma barra
+de status mostrando o caminho atual e o espaço livre em disco.
+
+Suporta multi-seleção (clique/Ctrl-clique/Shift-clique), renomear, mover e
+copiar (por menu, escolhendo o destino na árvore, ou por drag&drop direto
+da lista pra árvore — segurar Ctrl no drop copia em vez de mover),
+ordenação por nome/tipo/tamanho/data, e confirmação opcional antes de
+excluir. "Abrir" um arquivo usa uma tabela de associação por extensão
+(hoje só `.txt` → Editor de Texto) — não é um "Abrir Com" completo e não
+executa programas: este kernel não tem processo/exec, só janelas com
+`app_st` compilados estaticamente no binário.
+
+O sistema de arquivos por trás (`src/kernel/fs.c`/`fs.h`) também ganhou
+`fs_rename`/`fs_move`/`fs_copy`/`fs_path`/`fs_set_attr`, atributos
+(RO/hidden/system/archive, só exibição por enquanto) e timestamps reais
+(lidos do CMOS via `src/drivers/rtc.c` no boot). O formato on-disk foi de
+64 para 128 bytes por entrada (v1 → v2) — uma imagem de disco antiga é
+reformatada automaticamente na próxima boot.
 
 ## Execução dos testes
 

@@ -11,7 +11,7 @@ int atoi(char *string)
 	return res;
 }
 
-void itoa(int n, char s[])
+void itoa(char s[], int n)
 {
 	int i, sign;
 
@@ -30,16 +30,4 @@ void itoa(int n, char s[])
 	s[i] = '\0';
 
 	reverse(s);
-}
-
-void sleep(int milisecond)
-{
-	extern void kernel_sleep(int);
-	kernel_sleep(milisecond);
-}
-
-void shutdown()
-{
-	extern void kernel_shutdown();
-	kernel_shutdown();
 }
