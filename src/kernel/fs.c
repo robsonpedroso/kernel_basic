@@ -1,5 +1,5 @@
 #include "../include/fs.h"
-#include "../include/ide.h"
+#include "../include/storage_thread.h"
 #include "../include/rtc.h"
 #include "../include/string.h"
 
@@ -49,13 +49,13 @@ static void fs_set_name(fs_dirent_t *e, const char *name) {
 static void fs_flush_super(void) {
 	memset(g_sector, 0, 512);
 	*(fs_super_t *)g_sector = g_super;
-	ide_write_sectors(FS_SUPER_LBA, 1, g_sector);
+	storage_write_sectors(FS_SUPER_LBA, 1, g_sector);
 }
 
 static void fs_flush_entry(int id) {
 	// 4 entries (128 bytes each) per 512-byte sector.
 	int sector = id / 4;
-	ide_write_sectors(FS_TABLE_LBA + (unsigned int)sector, 1,
+	storage_write_sectors(FS_TABLE_LBA + (unsigned int)sector, 1,
 	                   (unsigned char *)g_table + (unsigned int)sector * 512u);
 }
 
@@ -63,7 +63,7 @@ static void fs_format(void) {
 	for (int i = 0; i < FS_MAX_ENTRIES; i++) {
 		g_table[i].used = 0;
 	}
-	ide_write_sectors(FS_TABLE_LBA, (int)FS_TABLE_SECTORS, g_table);
+	storage_write_sectors(FS_TABLE_LBA, (int)FS_TABLE_SECTORS, g_table);
 
 	g_super.magic = FS_MAGIC;
 	g_super.version = FS_VERSION;
@@ -73,7 +73,7 @@ static void fs_format(void) {
 }
 
 void fs_init(void) {
-	ide_read_sectors(FS_SUPER_LBA, 1, g_sector);
+	storage_read_sectors(FS_SUPER_LBA, 1, g_sector);
 	g_super = *(fs_super_t *)g_sector;
 
 	// A version mismatch (e.g. an old v1 image) is treated exactly like a
@@ -86,7 +86,7 @@ void fs_init(void) {
 		fs_format(); // blank/corrupt/stale disk (or first-ever boot) -- auto-format
 		return;
 	}
-	ide_read_sectors(FS_TABLE_LBA, (int)FS_TABLE_SECTORS, g_table);
+	storage_read_sectors(FS_TABLE_LBA, (int)FS_TABLE_SECTORS, g_table);
 }
 
 static int fs_alloc_entry(void) {
@@ -219,13 +219,13 @@ int fs_write_file(int id, const char *buf, int len) {
 
 	unsigned int whole = (unsigned int)len / 512u;
 	if (whole > 0) {
-		ide_write_sectors(e->start_lba, (int)whole, buf);
+		storage_write_sectors(e->start_lba, (int)whole, buf);
 	}
 	unsigned int rest = (unsigned int)len - whole * 512u;
 	if (rest > 0) {
 		memset(g_sector, 0, 512);
 		memcpy(g_sector, buf + whole * 512u, (int)rest);
-		ide_write_sectors(e->start_lba + whole, 1, g_sector);
+		storage_write_sectors(e->start_lba + whole, 1, g_sector);
 	}
 
 	e->size = (unsigned int)len;
@@ -249,11 +249,11 @@ int fs_read_file(int id, char *buf, int max) {
 
 	unsigned int whole = (unsigned int)n / 512u;
 	if (whole > 0) {
-		ide_read_sectors(e->start_lba, (int)whole, buf);
+		storage_read_sectors(e->start_lba, (int)whole, buf);
 	}
 	unsigned int rest = (unsigned int)n - whole * 512u;
 	if (rest > 0) {
-		ide_read_sectors(e->start_lba + whole, 1, g_sector);
+		storage_read_sectors(e->start_lba + whole, 1, g_sector);
 		memcpy(buf + whole * 512u, g_sector, (int)rest);
 	}
 	return n;

@@ -17,6 +17,8 @@
 #include "../include/ide.h"
 #include "../include/fs.h"
 #include "../include/apps/program_manager.h"
+#include "../include/thread.h"
+#include "../include/storage_thread.h"
 
 static void kernel_init(void) {
 	serial_init();
@@ -33,11 +35,17 @@ static void kernel_init(void) {
 	timer_init(100);
 	keyboard_init();
 	mouse_init();
-
-	// Polled PIO, no IRQ14 -- safe to run before sti. Doing fs_init() here
-	// means its first-boot auto-format happens before any window can exist
-	// to observe a half-mounted filesystem.
 	ide_init();
+
+	// thread_init() must come before fs_init(): fs.c's reads/writes now go
+	// through storage_read/write_sectors, which blocks the calling thread
+	// on the storage worker -- so that worker has to exist first. Neither
+	// needs sti yet: thread_block()/thread_wake() are plain voluntary
+	// stack switches, and ide.c's PIO polling doesn't need interrupts
+	// either, so fs_init()'s first-boot auto-format can still safely run
+	// before any window exists to observe a half-mounted filesystem.
+	thread_init();
+	thread_create("storage", storage_thread_main, 0, 4096);
 	fs_init();
 
 	// Unmask only what we actually drive: PIT (0), keyboard (1), the
@@ -57,14 +65,14 @@ static void kernel_init(void) {
 	serial_write("rSystemOS: boot ok (IDT/PIC/timer/keyboard/mouse/heap up), entering event loop\n");
 }
 
-void main() {
-	kernel_init();
-
-	wm_create_window(&program_manager_app, "Program Manager", program_manager_initial_rect(),
-	                  PROGRAM_MANAGER_MIN_W, PROGRAM_MANAGER_MIN_H);
-
+// Owns every event coming out of event.c and everything downstream of it
+// (wm.c, widgets, apps, video.c) -- the only thread that ever touches any
+// of that code, which is what lets heap.c be the only place besides the
+// storage queue that needs a preempt_disable/enable critical section.
+static void wm_thread_main(void *arg) {
+	(void)arg;
 	event_st ev;
-	while (1) {
+	for (;;) {
 		event_wait(&ev);
 
 		switch (ev.type) {
@@ -86,5 +94,20 @@ void main() {
 			default:
 				break;
 		}
+	}
+}
+
+void main() {
+	kernel_init();
+
+	// Still thread 0, before wm_thread exists: safe to touch wm.c directly
+	// this one time, and only this once.
+	wm_create_window(&program_manager_app, "Program Manager", program_manager_initial_rect(),
+	                  PROGRAM_MANAGER_MIN_W, PROGRAM_MANAGER_MIN_H);
+
+	thread_create("wm", wm_thread_main, 0, 8192);
+
+	for (;;) {
+		__asm__ volatile ("hlt");
 	}
 }

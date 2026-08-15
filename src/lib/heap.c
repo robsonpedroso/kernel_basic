@@ -1,4 +1,5 @@
 #include "../include/heap.h"
+#include "../include/thread.h"
 
 // Fixed physical heap region. This kernel has no E820/memory-map probing
 // yet, so instead of guessing a size-dependent offset from the end of the
@@ -30,10 +31,13 @@ static void heap_init(void) {
 }
 
 void *kmalloc(unsigned int size) {
+	preempt_disable();
+
 	if (!heap_initialized) {
 		heap_init();
 	}
 	if (size == 0) {
+		preempt_enable();
 		return 0;
 	}
 
@@ -53,11 +57,13 @@ void *kmalloc(unsigned int size) {
 				block->next = rest;
 			}
 			block->free = 0;
+			preempt_enable();
 			return (void *)((unsigned char *)block + sizeof(block_header_t));
 		}
 		block = block->next;
 	}
 
+	preempt_enable();
 	return 0; // out of memory
 }
 
@@ -77,7 +83,9 @@ void kfree(void *ptr) {
 	if (!ptr) {
 		return;
 	}
+	preempt_disable();
 	block_header_t *block = (block_header_t *)((unsigned char *)ptr - sizeof(block_header_t));
 	block->free = 1;
 	coalesce();
+	preempt_enable();
 }

@@ -100,9 +100,14 @@ void isr_handler(registers_t *regs) {
 void irq_handler(registers_t *regs) {
 	int irq = regs->int_no - 32;
 
+	// EOI must go out before the handler runs, not after: a handler that
+	// preempts (timer_irq_handler calling scheduler_tick) can suspend this
+	// call chain for a while, and until the ack happens the PIC keeps this
+	// IRQ's in-service bit set, blocking every lower-priority IRQ on the
+	// same controller (e.g. IRQ0 blocking keyboard/mouse) until it returns.
+	pic_send_eoi((unsigned char)irq);
+
 	if (irq >= 0 && irq < 16 && irq_routines[irq] != 0) {
 		irq_routines[irq](regs);
 	}
-
-	pic_send_eoi((unsigned char)irq);
 }

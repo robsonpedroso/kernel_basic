@@ -2,6 +2,7 @@
 #include "../include/isr.h"
 #include "../include/event.h"
 #include "../include/io.h"
+#include "../include/thread.h"
 
 #define PIT_CHANNEL0 0x40
 #define PIT_COMMAND  0x43
@@ -13,6 +14,7 @@ static void timer_irq_handler(registers_t *regs) {
 	(void)regs;
 	ticks++;
 	event_push(EVENT_TIMER_TICK, (int)ticks, 0);
+	scheduler_tick();
 }
 
 void timer_init(unsigned int frequency_hz) {

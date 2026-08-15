@@ -8,6 +8,8 @@ all:
 	gcc -fno-pie -fno-stack-protector -c src/kernel/serial.c -o dist/serial.o -m32
 	gcc -fno-pie -fno-stack-protector -c src/kernel/event.c -o dist/event.o -m32
 	gcc -fno-pie -fno-stack-protector -c src/kernel/timer.c -o dist/timer.o -m32
+	gcc -fno-pie -fno-stack-protector -c src/kernel/thread.c -o dist/thread.o -m32
+	gcc -fno-pie -fno-stack-protector -c src/kernel/storage_thread.c -o dist/storage_thread.o -m32
 	gcc -fno-pie -fno-stack-protector -c src/kernel/mouse.c -o dist/mouse.o -m32
 	gcc -fno-pie -fno-stack-protector -c src/kernel/fs.c -o dist/fs.o -m32
 	gcc -fno-pie -fno-stack-protector -c src/kernel/cc.c -o dist/cc.o -m32
@@ -42,7 +44,8 @@ all:
 	gcc -fno-pie -fno-stack-protector -c src/gui/apps/file_manager.c -o dist/app_file_manager.o -m32
 	nasm -f elf32 src/kernel/load_kernel.asm -o dist/load_kernel.o
 	nasm -f elf32 src/kernel/isr.asm -o dist/isr_stubs.o
-	ld -melf_i386 -o dist/kernel.bin -Ttext 0x1000 dist/load_kernel.o dist/kernel.o dist/pic.o dist/gdt.o dist/idt.o dist/isr.o dist/isr_stubs.o dist/serial.o dist/event.o dist/timer.o dist/mouse.o dist/fs.o dist/cc.o dist/stdlib.o dist/string.o dist/heap.o dist/video.o dist/keyboard.o dist/ide.o dist/rtc.o dist/rect.o dist/widget.o dist/window.o dist/cursor.o dist/icon.o dist/textbox.o dist/editbuf.o dist/lineedit.o dist/scrollbar.o dist/listbox.o dist/treeview.o dist/splitter.o dist/menubar.o dist/taskbar.o dist/confirm.o dist/wm.o dist/app_info.o dist/app_terminal.o dist/app_calculator.o dist/app_program_manager.o dist/app_text_editor.o dist/app_file_manager.o --oformat binary -T link.ld
+	nasm -f elf32 src/kernel/context_switch.asm -o dist/context_switch.o
+	ld -melf_i386 -o dist/kernel.bin -Ttext 0x1000 dist/load_kernel.o dist/kernel.o dist/pic.o dist/gdt.o dist/idt.o dist/isr.o dist/isr_stubs.o dist/serial.o dist/event.o dist/timer.o dist/thread.o dist/context_switch.o dist/storage_thread.o dist/mouse.o dist/fs.o dist/cc.o dist/stdlib.o dist/string.o dist/heap.o dist/video.o dist/keyboard.o dist/ide.o dist/rtc.o dist/rect.o dist/widget.o dist/window.o dist/cursor.o dist/icon.o dist/textbox.o dist/editbuf.o dist/lineedit.o dist/scrollbar.o dist/listbox.o dist/treeview.o dist/splitter.o dist/menubar.o dist/taskbar.o dist/confirm.o dist/wm.o dist/app_info.o dist/app_terminal.o dist/app_calculator.o dist/app_program_manager.o dist/app_text_editor.o dist/app_file_manager.o --oformat binary -T link.ld
 	# The image is created zero-filled ONCE. Rebuilds must not recreate it:
 	# everything from LBA 801 on is the filesystem region (fs.c), and it has
 	# to survive `make all`, otherwise persistence only holds until the next
