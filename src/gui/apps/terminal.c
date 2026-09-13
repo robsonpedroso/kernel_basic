@@ -688,6 +688,9 @@ static int terminal_exec(wm_window_st *win, terminal_state_t *s, char *line) {
 static void *terminal_on_init(wm_window_st *win) {
 	(void)win;
 	terminal_state_t *s = (terminal_state_t *)kmalloc(sizeof(terminal_state_t));
+	if (!s) {
+		return 0;
+	}
 	textbox_init(&s->tb, TERMINAL_COLS, TERMINAL_ROWS);
 	s->blink_on = 1;
 	s->last_blink_tick = 0;

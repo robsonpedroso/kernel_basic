@@ -27,4 +27,15 @@ unsigned int keyboard_get_mods(void);
 #define KEY_HOME   0x85
 #define KEY_END    0x86
 
+// Ctrl/Shift/Alt as keys in their own right, not just the KEY_MOD_* bits in
+// event_st.b -- added for the Doom port (apps/games/src/doom/doom_app.c),
+// which needs press/release of these three specifically (fire/run/nothing
+// in classic Doom's default control scheme) the same way it needs any
+// other key's up/down edge. Previously these scancodes only updated
+// keyboard.c's internal `mods` and returned without ever reaching
+// event_push -- no existing app noticed, since none asked for them.
+#define KEY_CTRL  0x87
+#define KEY_SHIFT 0x88
+#define KEY_ALT   0x89
+
 #endif

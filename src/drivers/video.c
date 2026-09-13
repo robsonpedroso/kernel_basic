@@ -1,6 +1,7 @@
 #include "../include/video.h"
 #include "../include/font8x8_basic.h"
 #include "../include/io.h"
+#include "../include/thread.h"
 
 // Mode 12h: 640x480, 16 colors, 4 bitplanes (VGA "planar" memory model).
 // Each byte at FRAMEBUFFER+offset holds 8 pixels' worth of ONE bit per
@@ -67,6 +68,18 @@ void draw_pixel(int x, int y, unsigned char color) {
 	unsigned char bit = 0x80 >> (x % 8);
 	unsigned char* fb = (unsigned char*)FRAMEBUFFER;
 
+	// The VGA Graphics Controller/Sequencer registers below are shared,
+	// stateful hardware, not per-caller state -- since the Doom port added
+	// a second kernel thread that also calls this (see
+	// apps/games/src/doom/doomgeneric_rsystemos.c's DG_DrawFrame), a
+	// scheduler_tick() preemption landing mid-sequence (e.g. after this
+	// thread's vga_write_gc(SET_RESET) but before its own final byte
+	// write) would let another thread's draw_pixel/fill_rect interleave
+	// its own register writes in between, corrupting both calls' colors.
+	// preempt_disable/enable (cli/sti) makes each call atomic with
+	// respect to thread switches; negligible cost next to the port I/O
+	// itself, which is already far slower than a few extra instructions.
+	preempt_disable();
 	vga_write_seq(VGA_SEQ_MAP_MASK, 0x0F);          // write to all 4 planes
 	vga_write_gc(VGA_GC_SET_RESET, color & 0x0F);    // desired color, per plane
 	vga_write_gc(VGA_GC_ENABLE_SET_RESET, 0x0F);     // use Set/Reset for all planes
@@ -75,6 +88,7 @@ void draw_pixel(int x, int y, unsigned char color) {
 	volatile unsigned char latch = fb[offset]; // load the latch with the old byte
 	(void)latch;
 	fb[offset] = 0xFF; // value is irrelevant: Bit Mask/Set-Reset decide the result
+	preempt_enable();
 }
 
 // Reads a pixel's 4-bit color back by probing each bitplane in turn via
@@ -88,12 +102,16 @@ unsigned char get_pixel(int x, int y) {
 	unsigned char* fb = (unsigned char*)FRAMEBUFFER;
 	unsigned char color = 0;
 
+	// See draw_pixel()'s comment: same shared-hardware-register race, now
+	// that a second thread exists that also touches the GC registers.
+	preempt_disable();
 	for (unsigned char plane = 0; plane < 4; plane++) {
 		vga_write_gc(VGA_GC_READ_MAP_SELECT, plane);
 		if (fb[offset] & bit) {
 			color |= (1 << plane);
 		}
 	}
+	preempt_enable();
 
 	return color;
 }
@@ -145,6 +163,13 @@ void fill_rect(int x, int y, int w, int h, unsigned char color) {
 
 	unsigned char* fb = (unsigned char*)FRAMEBUFFER;
 
+	// See draw_pixel()'s comment: registers are set up once here, then
+	// fill_row() below only touches Bit Mask per scanline -- the whole
+	// sequence (not just each fill_row call) has to be atomic w.r.t.
+	// thread switches, or a preempting draw_pixel/fill_rect from the
+	// other thread would reprogram Set/Reset out from under this loop
+	// mid-fill.
+	preempt_disable();
 	vga_write_seq(VGA_SEQ_MAP_MASK, 0x0F);
 	vga_write_gc(VGA_GC_SET_RESET, color & 0x0F);
 	vga_write_gc(VGA_GC_ENABLE_SET_RESET, 0x0F);
@@ -152,6 +177,7 @@ void fill_rect(int x, int y, int w, int h, unsigned char color) {
 	for (int yy = y; yy < y + h; yy++) {
 		fill_row(fb, (unsigned int)yy * BYTES_PER_ROW, x, w);
 	}
+	preempt_enable();
 }
 
 void draw_rect(int x, int y, int w, int h, unsigned char color) {

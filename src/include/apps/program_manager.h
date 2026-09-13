@@ -7,7 +7,7 @@
 #define PROGRAM_MANAGER_MIN_W 360
 #define PROGRAM_MANAGER_MIN_H 180
 
-#define PM_ICON_COUNT 5
+#define PM_ICON_COUNT 6
 
 // One entry per app launchable from the Program Manager icon grid. Exported
 // (not static to program_manager.c) so the taskbar's Start menu (wm.c) can

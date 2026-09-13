@@ -130,10 +130,10 @@ static void keyboard_irq_handler(registers_t *regs) {
 		// Right Ctrl and AltGr arrive extended too -- keep the modifier
 		// mask honest instead of silently dropping them.
 		switch (scancode) {
-			case 0x1D: mods |= KEY_MOD_CTRL;  return;
-			case 0x9D: mods &= ~KEY_MOD_CTRL; return;
-			case 0x38: mods |= KEY_MOD_ALT;   return;
-			case 0xB8: mods &= ~KEY_MOD_ALT;  return;
+			case 0x1D: mods |= KEY_MOD_CTRL;  event_push(EVENT_KEY_DOWN, KEY_CTRL, mods); return;
+			case 0x9D: mods &= ~KEY_MOD_CTRL; event_push(EVENT_KEY_UP,   KEY_CTRL, mods); return;
+			case 0x38: mods |= KEY_MOD_ALT;   event_push(EVENT_KEY_DOWN, KEY_ALT,  mods); return;
+			case 0xB8: mods &= ~KEY_MOD_ALT;  event_push(EVENT_KEY_UP,   KEY_ALT,  mods); return;
 		}
 		int is_break = scancode & 0x80;
 		int ascii = keyboard_extended_ascii(scancode & 0x7F);
@@ -148,22 +148,28 @@ static void keyboard_irq_handler(registers_t *regs) {
 		case SC_LSHIFT_MAKE:
 		case SC_RSHIFT_MAKE:
 			mods |= KEY_MOD_SHIFT;
+			event_push(EVENT_KEY_DOWN, KEY_SHIFT, mods);
 			return;
 		case SC_LSHIFT_BREAK:
 		case SC_RSHIFT_BREAK:
 			mods &= ~KEY_MOD_SHIFT;
+			event_push(EVENT_KEY_UP, KEY_SHIFT, mods);
 			return;
 		case SC_CTRL_MAKE:
 			mods |= KEY_MOD_CTRL;
+			event_push(EVENT_KEY_DOWN, KEY_CTRL, mods);
 			return;
 		case SC_CTRL_BREAK:
 			mods &= ~KEY_MOD_CTRL;
+			event_push(EVENT_KEY_UP, KEY_CTRL, mods);
 			return;
 		case SC_ALT_MAKE:
 			mods |= KEY_MOD_ALT;
+			event_push(EVENT_KEY_DOWN, KEY_ALT, mods);
 			return;
 		case SC_ALT_BREAK:
 			mods &= ~KEY_MOD_ALT;
+			event_push(EVENT_KEY_UP, KEY_ALT, mods);
 			return;
 	}
 

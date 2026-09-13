@@ -49,6 +49,7 @@ void wm_on_mouse_move(int x, int y);
 void wm_on_mouse_down(int x, int y, int buttons);
 void wm_on_mouse_up(int x, int y, int buttons);
 void wm_on_key_down(int ascii, int mods);
+void wm_on_key_up(int ascii, int mods);
 void wm_on_tick(void);
 
 #endif

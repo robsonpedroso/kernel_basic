@@ -17,11 +17,17 @@
 // migration tool; this is the same tradeoff as running `make distclean`.
 #define FS_VERSION       2u
 
-#define FS_SUPER_LBA     801u
-#define FS_TABLE_LBA     802u
+// Shifted from 801/802/834/2880 once IDE_SECTORS (src/boot/bootloader.asm)
+// grew from 800 to 4096 sectors to fit the vendored Doom engine's ~890KB
+// kernel image (see link.ld's ASSERT) -- this region always starts right
+// after the boot-time kernel-load budget, so it moves in lockstep with
+// that constant. See apps/games/src/doom/'s build notes / README.md's
+// "Orçamento de boot" section for the general procedure.
+#define FS_SUPER_LBA     4097u
+#define FS_TABLE_LBA     4098u
 #define FS_TABLE_SECTORS 32u     // 128 entries * 128 bytes / 512
-#define FS_DATA_LBA      834u    // FS_TABLE_LBA + FS_TABLE_SECTORS
-#define FS_END_LBA       2880u   // 1474560 / 512
+#define FS_DATA_LBA      4130u   // FS_TABLE_LBA + FS_TABLE_SECTORS
+#define FS_END_LBA       6176u   // where the Doom WAD blob region begins, see wad_disk.h WAD_LBA
 
 #define FS_MAX_ENTRIES   128
 #define FS_NAME_MAX      100     // 99 chars + NUL -- pads fs_dirent_t to 128 bytes

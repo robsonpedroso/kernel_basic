@@ -78,6 +78,8 @@ void isr_handler(registers_t *regs) {
 	serial_write(exception_messages[regs->int_no]);
 	serial_write(" err=");
 	serial_write_hex(regs->err_code);
+	serial_write(" eip=");
+	serial_write_hex(regs->eip);
 	serial_write("\n");
 
 	kernel_print_text("\n*** KERNEL PANIC ***\n", 0);

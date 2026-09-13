@@ -4,3 +4,4 @@
 *.iso
 *.img
 NEXT_STEPS.md
+dist/repro.sh

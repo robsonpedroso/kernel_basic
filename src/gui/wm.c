@@ -9,6 +9,7 @@
 #include "../include/event.h"
 #include "../include/taskbar.h"
 #include "../include/apps/program_manager.h"
+#include "../include/thread.h"
 
 // --- drag/resize state machine -------------------------------------------
 typedef enum { WM_IDLE, WM_DRAGGING_TITLE, WM_RESIZING, WM_APP_CAPTURED } wm_mode_t;
@@ -120,7 +121,17 @@ wm_window_st *wm_create_window(const app_st *app, const char *title, rect_st rec
 	w->app = app;
 	w->min_w = min_w;
 	w->min_h = min_h;
+	// Atomic w.r.t. the scheduler: on_init (kmalloc + a handful of widget
+	// writes) is fast and never blocks, and running it with preemption
+	// enabled let a timer-IRQ-driven thread switch land mid-init and
+	// corrupt window/thread state (observed as a wild jump into unrelated
+	// code and a lost "wm" thread once real multithreading -- 3+ ready
+	// threads -- started happening once the "wm" thread existed; never
+	// reproduced for Program Manager's boot-time creation, which runs
+	// before "wm" exists and so never really gets preempted here).
+	preempt_disable();
 	w->app_state = app->on_init ? app->on_init(w) : 0;
+	preempt_enable();
 
 	g_windows[g_window_count++] = w;
 	g_focused = w;
@@ -530,6 +541,13 @@ void wm_on_mouse_up(int x, int y, int buttons) {
 void wm_on_key_down(int ascii, int mods) {
 	if (g_focused && g_focused->app->on_key_down) {
 		g_focused->app->on_key_down(g_focused, g_focused->app_state, ascii, mods);
+		g_dirty = 1;
+	}
+}
+
+void wm_on_key_up(int ascii, int mods) {
+	if (g_focused && g_focused->app->on_key_up) {
+		g_focused->app->on_key_up(g_focused, g_focused->app_state, ascii, mods);
 		g_dirty = 1;
 	}
 }

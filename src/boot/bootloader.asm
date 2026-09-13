@@ -23,6 +23,17 @@ load:
     mov ax, 0x0012
     int 10h
 
+    ; Fast A20 gate (System Control Port A, port 0x92, bit 1). Required now
+    ; that the heap lives past the 1MiB mark (see heap.c HEAP_START) --
+    ; without this, addresses up there silently wrap back into low memory
+    ; instead of failing loudly. Broadly supported by QEMU's emulated
+    ; chipset, the only tested target here (see Makefile's `exec`); the
+    ; keyboard-controller method (port 0x64/0x60) is the documented
+    ; fallback if a different target ever needs it.
+    in al, 0x92
+    or al, 2
+    out 0x92, al
+
     cli
 
     lgdt [gdt_descriptor]
@@ -41,10 +52,16 @@ init_pm:
     MOV SS, AX
     MOV ES, AX
 
-    ; Runtime kernel stack, set well above the loaded kernel image (which
-    ; grows up from 0x1000) so neither can grow into the other. 0x90000
-    ; leaves ~500KB+ of headroom -- comfortable for a long time to come.
-    MOV EBP, 0x90000
+    ; Runtime kernel stack. Relocated from the original 0x90000 into
+    ; extended memory (requires the A20 gate above) once the vendored Doom
+    ; engine's own .bss (visplanes/openings/zlight/etc render tables, see
+    ; the Phase 1.5 link-probe notes in apps/games/src/doom/) pushed the
+    ; kernel image itself well past the old ~544KB budget between 0x1000
+    ; and 0x90000. New layout, each region comfortably oversized for
+    ; today's actual usage: kernel image 0x1000..0x200000 (see link.ld's
+    ; ASSERT), stack region 0x200000..0x300000 (this base, growing down),
+    ; heap 0x300000..0xB00000 (see heap.c HEAP_START/HEAP_SIZE).
+    MOV EBP, 0x2F0000
     MOV ESP, EBP
 
     call ide_load_kernel   ; pull the kernel body in via raw IDE PIO (no BIOS
@@ -68,7 +85,14 @@ IDE_LBA_HI  equ 0x1F5
 IDE_DRVHEAD equ 0x1F6
 IDE_CMD     equ 0x1F7   ; status on read
 
-IDE_SECTORS equ 800     ; 800*512 = 400KB budget for the kernel image
+; 4096*512 = 2MB budget -- raised from the original 800 (400KB) once the
+; vendored Doom engine (apps/games/src/doom/) measured at ~890KB of linked
+; .text+.rodata+.data+.bss (see link.ld's ASSERT, which caps the image at
+; exactly this same 2MB so the two constants can't silently drift apart).
+; fs.h's FS_SUPER_LBA/FS_TABLE_LBA/FS_DATA_LBA/FS_END_LBA and wad_disk.h's
+; WAD_LBA all shifted by the same delta (3296 sectors) to stay right after
+; this budget -- see those headers' comments.
+IDE_SECTORS equ 4096
 IDE_DEST    equ 0x1000
 
 ; This boot sector itself still lives (and is still executing!) at
@@ -76,12 +100,16 @@ IDE_DEST    equ 0x1000
 ; always walks straight through that range once the kernel image is big
 ; enough -- so the ONE sector whose real destination falls there gets
 ; redirected here instead of overwriting the code/variables currently
-; reading it. Past the runtime stack (ESP starts at 0x90000 and grows
-; down), well before the VGA framebuffer at 0xA0000, so nothing else uses
-; it. load_kernel.asm copies it into its real place (0x7C00) as the very
-; first thing the kernel does, once it's safe (no longer executing from
-; there) -- see the comment there for why a plain "skip this sector"
-; would corrupt everything loaded after it instead.
+; reading it. This address is only ever touched transiently during boot,
+; well before the runtime stack/heap (now up in extended memory, see
+; init_pm's comment) or anything else is live, so its exact placement
+; relative to them doesn't matter -- just that nothing else uses it, which
+; holds since it sits below the 0xA0000 VGA framebuffer, untouched by
+; either the old or new memory layout. load_kernel.asm copies it into its
+; real place (0x7C00) as the very first thing the kernel does, once it's
+; safe (no longer executing from there) -- see the comment there for why a
+; plain "skip this sector" would corrupt everything loaded after it
+; instead.
 IDE_SCRATCH equ 0x91000
 
 ide_load_kernel:

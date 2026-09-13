@@ -7,4 +7,9 @@
 void *kmalloc(unsigned int size);
 void kfree(void *ptr);
 
+// Usable size of a live kmalloc'd block (not counting the header) -- added
+// for doom_libc_shim.c's realloc(), which needs to know how much of the
+// old block to preserve when growing/shrinking. 0 for a NULL ptr.
+unsigned int kalloc_size(void *ptr);
+
 #endif
