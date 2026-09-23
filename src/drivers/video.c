@@ -69,13 +69,11 @@ void draw_pixel(int x, int y, unsigned char color) {
 	unsigned char* fb = (unsigned char*)FRAMEBUFFER;
 
 	// The VGA Graphics Controller/Sequencer registers below are shared,
-	// stateful hardware, not per-caller state -- since the Doom port added
-	// a second kernel thread that also calls this (see
-	// apps/games/src/doom/doomgeneric_rsystemos.c's DG_DrawFrame), a
-	// scheduler_tick() preemption landing mid-sequence (e.g. after this
-	// thread's vga_write_gc(SET_RESET) but before its own final byte
-	// write) would let another thread's draw_pixel/fill_rect interleave
-	// its own register writes in between, corrupting both calls' colors.
+	// stateful hardware, not per-caller state -- a scheduler_tick()
+	// preemption landing mid-sequence (e.g. after this thread's
+	// vga_write_gc(SET_RESET) but before its own final byte write) would
+	// let another thread's draw_pixel/fill_rect interleave its own
+	// register writes in between, corrupting both calls' colors.
 	// preempt_disable/enable (cli/sti) makes each call atomic with
 	// respect to thread switches; negligible cost next to the port I/O
 	// itself, which is already far slower than a few extra instructions.
@@ -102,8 +100,7 @@ unsigned char get_pixel(int x, int y) {
 	unsigned char* fb = (unsigned char*)FRAMEBUFFER;
 	unsigned char color = 0;
 
-	// See draw_pixel()'s comment: same shared-hardware-register race, now
-	// that a second thread exists that also touches the GC registers.
+	// See draw_pixel()'s comment: same shared-hardware-register race.
 	preempt_disable();
 	for (unsigned char plane = 0; plane < 4; plane++) {
 		vga_write_gc(VGA_GC_READ_MAP_SELECT, plane);
@@ -166,9 +163,8 @@ void fill_rect(int x, int y, int w, int h, unsigned char color) {
 	// See draw_pixel()'s comment: registers are set up once here, then
 	// fill_row() below only touches Bit Mask per scanline -- the whole
 	// sequence (not just each fill_row call) has to be atomic w.r.t.
-	// thread switches, or a preempting draw_pixel/fill_rect from the
-	// other thread would reprogram Set/Reset out from under this loop
-	// mid-fill.
+	// thread switches, or a preempting draw_pixel/fill_rect would
+	// reprogram Set/Reset out from under this loop mid-fill.
 	preempt_disable();
 	vga_write_seq(VGA_SEQ_MAP_MASK, 0x0F);
 	vga_write_gc(VGA_GC_SET_RESET, color & 0x0F);

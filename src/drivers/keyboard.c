@@ -2,6 +2,7 @@
 #include "../include/isr.h"
 #include "../include/event.h"
 #include "../include/io.h"
+#include "../include/serial.h" // TEMP DEBUG: freeze-on-typing diagnosis, remove after root cause found
 
 // US QWERTY scancode set 1 -> ASCII. Index is the scancode with the
 // make/break bit (0x80) stripped off.
@@ -184,6 +185,9 @@ static void keyboard_irq_handler(registers_t *regs) {
 		return;
 	}
 
+	serial_write("KBD ascii=0x"); // TEMP DEBUG
+	serial_write_hex(ascii);      // TEMP DEBUG
+	serial_write("\n");           // TEMP DEBUG
 	event_push(is_break ? EVENT_KEY_UP : EVENT_KEY_DOWN, ascii, mods);
 }
 

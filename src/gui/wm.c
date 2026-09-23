@@ -10,6 +10,7 @@
 #include "../include/taskbar.h"
 #include "../include/apps/program_manager.h"
 #include "../include/thread.h"
+#include "../include/serial.h" // TEMP DEBUG: freeze-on-typing diagnosis, remove after root cause found
 
 // --- drag/resize state machine -------------------------------------------
 typedef enum { WM_IDLE, WM_DRAGGING_TITLE, WM_RESIZING, WM_APP_CAPTURED } wm_mode_t;
@@ -540,7 +541,9 @@ void wm_on_mouse_up(int x, int y, int buttons) {
 
 void wm_on_key_down(int ascii, int mods) {
 	if (g_focused && g_focused->app->on_key_down) {
+		serial_write("WM-in\n"); // TEMP DEBUG
 		g_focused->app->on_key_down(g_focused, g_focused->app_state, ascii, mods);
+		serial_write("WM-out\n"); // TEMP DEBUG
 		g_dirty = 1;
 	}
 }
@@ -566,6 +569,7 @@ void wm_on_tick(void) {
 		return;
 	}
 	g_dirty = 0;
+	serial_write("TICK-composite\n"); // TEMP DEBUG
 	wm_composite();
 }
 

@@ -26,10 +26,9 @@ typedef struct app {
 
 	void (*on_key_down)(wm_window_st *win, void *state, int ascii, int mods);
 
-	// Optional: key release, same (ascii, mods) shape as on_key_down. No
-	// app needed this until the Doom port (apps/games/src/doom/doom_app.c),
-	// which needs both edges of every key for held-movement semantics --
-	// every existing app leaves this NULL via designated initializers, so
+	// Optional: key release, same (ascii, mods) shape as on_key_down, for
+	// apps that need both edges of a key (e.g. held-movement semantics).
+	// Every existing app leaves this NULL via designated initializers, so
 	// adding it here doesn't touch them (same reasoning as on_blur below).
 	void (*on_key_up)(wm_window_st *win, void *state, int ascii, int mods);
 

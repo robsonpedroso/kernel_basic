@@ -12,6 +12,7 @@
 #include "../../include/timer.h"
 #include "../../include/keyboard.h"
 #include "../../include/event.h"
+#include "../../include/serial.h" // TEMP DEBUG: freeze-on-typing diagnosis, remove after root cause found
 
 #define TE_COLS 53
 #define TE_ROWS 20
@@ -127,8 +128,19 @@ static void text_editor_on_show(wm_window_st *win, void *state, rect_st content)
 
 	rect_st edit_area = { content.x, content.y + TE_TOOLBAR_H, content.w, content.h - TE_TOOLBAR_H };
 	fill_rect(edit_area.x, edit_area.y, edit_area.w, edit_area.h, GUI_COLOR_BLACK);
+	serial_write("TE-show-in\n"); // TEMP DEBUG
 	editbuf_render(&s->eb, &s->tb);
+	// TEMP DEBUG: dump raw state to confirm data vs. rendering
+	serial_write("EB eb_ptr=0x"); serial_write_hex((unsigned int)&s->eb);
+	serial_write(" len=0x"); serial_write_hex(s->eb.len);
+	serial_write(" cursor=0x"); serial_write_hex(s->eb.cursor);
+	serial_write(" row0=[");
+	serial_write(s->tb.cells);
+	serial_write("] editarea x=0x"); serial_write_hex(edit_area.x + TE_PAD);
+	serial_write(" y=0x"); serial_write_hex(edit_area.y + TE_PAD);
+	serial_write("\n");
 	textbox_draw(&s->tb, edit_area.x + TE_PAD, edit_area.y + TE_PAD, s->blink_on);
+	serial_write("TE-show-out\n"); // TEMP DEBUG
 
 	if (s->prompt.active) {
 		lineedit_draw(&s->prompt, content);
@@ -138,6 +150,7 @@ static void text_editor_on_show(wm_window_st *win, void *state, rect_st content)
 static void text_editor_on_key_down(wm_window_st *win, void *state, int ascii, int mods) {
 	(void)win;
 	text_editor_state_t *s = (text_editor_state_t *)state;
+	serial_write("TE-in eb_ptr=0x"); serial_write_hex((unsigned int)&s->eb); serial_write("\n"); // TEMP DEBUG
 
 	if (s->prompt.active) {
 		int r = lineedit_key(&s->prompt, ascii);
@@ -154,6 +167,7 @@ static void text_editor_on_key_down(wm_window_st *win, void *state, int ascii, i
 	}
 
 	editbuf_key(&s->eb, ascii);
+	serial_write("TE-out\n"); // TEMP DEBUG
 }
 
 static void text_editor_on_mouse_down(wm_window_st *win, void *state, int lx, int ly, int buttons) {

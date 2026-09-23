@@ -1,6 +1,7 @@
 #include "../include/editbuf.h"
 #include "../include/heap.h"
 #include "../include/keyboard.h"
+#include "../include/serial.h" // TEMP DEBUG: freeze-on-typing diagnosis, remove after root cause found
 
 void editbuf_init(editbuf_st *eb, int capacity) {
 	eb->data = (char *)kmalloc((unsigned int)capacity);
@@ -47,7 +48,11 @@ static int line_end(editbuf_st *eb, int off) {
 }
 
 static void eb_insert(editbuf_st *eb, char c) {
+	serial_write("INS ptr=0x"); serial_write_hex((unsigned int)eb); // TEMP DEBUG
+	serial_write(" cap=0x"); serial_write_hex((unsigned int)eb->cap); // TEMP DEBUG
+	serial_write(" len_before=0x"); serial_write_hex((unsigned int)eb->len); serial_write("\n"); // TEMP DEBUG
 	if (eb->len >= eb->cap) {
+		serial_write("INS bail: len>=cap\n"); // TEMP DEBUG
 		return;
 	}
 	for (int i = eb->len; i > eb->cursor; i--) {
@@ -56,6 +61,7 @@ static void eb_insert(editbuf_st *eb, char c) {
 	eb->data[eb->cursor] = c;
 	eb->cursor++;
 	eb->len++;
+	serial_write("INS len_after=0x"); serial_write_hex((unsigned int)eb->len); serial_write("\n"); // TEMP DEBUG
 }
 
 static void eb_erase(editbuf_st *eb, int at) {
@@ -92,6 +98,7 @@ static void eb_down(editbuf_st *eb) {
 }
 
 int editbuf_key(editbuf_st *eb, int ascii) {
+	serial_write("EB-in\n"); // TEMP DEBUG
 	switch (ascii) {
 		case KEY_LEFT:
 			if (eb->cursor > 0) {

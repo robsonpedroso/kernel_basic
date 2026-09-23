@@ -1,5 +1,0 @@
-# doom1.wad (shareware, freely redistributable) is not vendored into the
-# repo -- drop it here yourself before `make all` embeds it into the disk
-# image (see Makefile's WAD-blob step, added in a later phase).
-*.wad
-!.gitkeep

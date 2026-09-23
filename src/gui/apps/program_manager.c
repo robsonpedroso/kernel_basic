@@ -4,7 +4,6 @@
 #include "../../include/apps/info.h"
 #include "../../include/apps/file_manager.h"
 #include "../../include/apps/text_editor.h"
-#include "../../include/apps/doom.h"
 #include "../../include/wm.h"
 #include "../../include/icon.h"
 #include "../../include/rect.h"
@@ -32,7 +31,6 @@ const pm_launcher_entry_t g_launchers[PM_ICON_COUNT] = {
 	{ &info_app,         "Info",       "Info",         { 150, 280, 260, 180 }, 150, 100,                               1 },
 	{ &file_manager_app, "Arquivos",   "Arquivos",     {  60,  60, 400, 300 }, FILE_MANAGER_MIN_W, FILE_MANAGER_MIN_H, 1 },
 	{ &text_editor_app,  "Editor",     "Text Editor",  { 120,  60, 460, 300 }, TEXT_EDITOR_MIN_W,  TEXT_EDITOR_MIN_H,  0 },
-	{ &doom_app,         "Doom",       "Doom",         { 100,  40, 360, 260 }, DOOM_MIN_W,         DOOM_MIN_H,         1 },
 };
 
 typedef struct {

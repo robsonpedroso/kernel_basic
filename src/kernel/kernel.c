@@ -20,7 +20,6 @@
 #include "../include/thread.h"
 #include "../include/storage_thread.h"
 #include "../include/heap.h"
-#include "../include/apps/doom.h"
 
 static void kernel_init(void) {
 	serial_init();
@@ -50,17 +49,6 @@ static void kernel_init(void) {
 	thread_create("storage", storage_thread_main, 0, 4096);
 	fs_init();
 
-	// Must happen here, not lazily inside doom_on_init(): it blocks on the
-	// storage worker just created above (a real disk read), and doing that
-	// from inside wm_create_window()'s preempt_disable()-protected on_init
-	// call reopens the exact scheduler-preemption race that protection
-	// exists to prevent (thread_block()'s trailing sti fires regardless of
-	// that outer preempt_disable() nesting -- see doom_app.c's
-	// doom_precheck_wad() comment for the full mechanism). Safe here: no
-	// window/on_init can run this early, and interrupts are still off
-	// (sti below) so nothing this blocks on can itself be interrupted.
-	doom_precheck_wad();
-
 	// Unmask only what we actually drive: PIT (0), keyboard (1), the
 	// master->slave cascade line (2, required for any slave-PIC IRQ to
 	// reach the CPU) and the mouse (12, lives on the slave PIC).
@@ -75,44 +63,12 @@ static void kernel_init(void) {
 
 	__asm__ volatile ("sti");
 
-	// x87 FPU bring-up: BIOS/boot leaves its control/tag word state
-	// undefined rather than IEEE-clean, and this kernel has no #MF/#NM ISR
-	// handler -- fninit is the standard one-instruction fix, needed now
-	// that doom_libc_shim.c's sin/cos/tan/fabs use real x87 instructions
-	// (see its comment for why: R_InitTextureMapping's one-time setup).
-	//__asm__ volatile ("fninit");
-
-	// One-time heap sanity check: HEAP_START/HEAP_SIZE moved into extended
-	// memory (see heap.c) to fit doomgeneric's working set -- newly
-	// exercised address range for this kernel, so prove a multi-MB
-	// allocation actually round-trips before trusting it silently.
-	// {
-	// 	unsigned int test_size = 4u * 1024u * 1024u; // 4MiB
-	// 	unsigned char *p = (unsigned char *)kmalloc(test_size);
-	// 	if (!p) {
-	// 		serial_write("rSystemOS: heap self-test FAILED (4MiB kmalloc returned NULL)\n");
-	// 	} else {
-	// 		p[0] = 0xA5;
-	// 		p[test_size - 1] = 0x5A;
-	// 		if (p[0] == 0xA5 && p[test_size - 1] == 0x5A) {
-	// 			serial_write("rSystemOS: heap self-test OK (4MiB alloc/read/write)\n");
-	// 		} else {
-	// 			serial_write("rSystemOS: heap self-test FAILED (data mismatch)\n");
-	// 		}
-	// 		kfree(p);
-	// 	}
-	// }
-
 	serial_write("rSystemOS: boot ok (IDT/PIC/timer/keyboard/mouse/heap up), entering event loop\n");
 }
 
 // Owns every event coming out of event.c and everything downstream of it
-// (wm.c, widgets, apps). Was, until the Doom port, the only thread that
-// ever touched video.c's pixel primitives too -- it no longer is: the
-// "doom" thread (apps/games/src/doom/doom_app.c) calls draw_pixel/
-// fill_rect directly from DG_DrawFrame, outside this thread's control, so
-// those gained their own preempt_disable/enable (see video.c) the same way
-// heap.c and the storage queue already had theirs.
+// (wm.c, widgets, apps) -- the only thread that touches video.c's pixel
+// primitives.
 static void wm_thread_main(void *arg) {
 	(void)arg;
 	event_st ev;
@@ -130,6 +86,7 @@ static void wm_thread_main(void *arg) {
 				wm_on_mouse_up(mouse_get_x(), mouse_get_y(), ev.a);
 				break;
 			case EVENT_KEY_DOWN:
+				serial_write("EVQ\n"); // TEMP DEBUG: freeze-on-typing diagnosis
 				wm_on_key_down(ev.a, ev.b);
 				break;
 			case EVENT_KEY_UP:

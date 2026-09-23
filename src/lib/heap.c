@@ -4,18 +4,14 @@
 // Fixed physical heap region. This kernel has no E820/memory-map probing
 // yet, so instead of guessing a size-dependent offset from the end of the
 // kernel image, we hardcode a region with a comfortable amount of free
-// memory on every side. Moved to extended memory (past 1MiB) to make room
-// for doomgeneric's working set -- its own screen buffer alone
-// (320*200*sizeof(uint32_t)) is ~250KB, bigger than this heap's entire old
-// 128KiB budget, before any zone/level/texture memory is even considered.
-// Requires the A20 gate (see bootloader.asm) and an explicit qemu `-m`
+// memory on every side. Lives in extended memory (past 1MiB), which
+// requires the A20 gate (see bootloader.asm) and an explicit qemu `-m`
 // (see Makefile's `exec` target), since nothing here probes how much
 // physical RAM actually backs this range. Runs 0x300000..0xB00000 (8MiB),
-// entirely past the runtime stack at 0x200000..0x300000 (relocated there
-// by bootloader.asm's init_pm once the Doom-inflated kernel image no
-// longer fit below the old 0x90000 stack) -- see link.ld's ASSERT for the
-// guard gap between the kernel image and that stack. HEAP_START must stay
-// in lockstep with bootloader.asm's stack base/link.ld's stack-region
+// entirely past the runtime stack at 0x200000..0x300000 (see
+// bootloader.asm's init_pm) -- see link.ld's ASSERT for the guard gap
+// between the kernel image and that stack. HEAP_START must stay in
+// lockstep with bootloader.asm's stack base/link.ld's stack-region
 // comment; letting them drift apart makes kmalloc() hand out memory that
 // aliases the live hardware stack.
 #define HEAP_START 0x300000u
